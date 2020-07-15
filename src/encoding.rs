@@ -393,15 +393,8 @@ pub fn skip_field<B>(
 where
     B: Buf,
 {
-    handle_unknown_field(
-        wire_type,
-        tag,
-        buf,
-        &mut |_, len, buf| {
-            buf.advance(len);
-        },
-        ctx,
-    )
+    let _ = handle_unknown_field(wire_type, tag, buf, false, ctx)?;
+    Ok(())
 }
 
 pub fn unknown_field<B>(
@@ -414,37 +407,37 @@ pub fn unknown_field<B>(
 where
     B: Buf,
 {
-    handle_unknown_field(
-        wire_type,
-        tag,
-        buf,
-        &mut |tag, len, buf| {
-            let mut value = Vec::new();
-            value.resize(len as usize, 0);
-            buf.copy_to_slice(value.as_mut_slice());
-            unknown_fields.push(UnknownField { tag, value });
-        },
-        ctx,
-    )
+    let value = handle_unknown_field(wire_type, tag, buf, true, ctx)?.unwrap();
+    unknown_fields.push(UnknownField { tag, value });
+    Ok(())
 }
 
-fn handle_unknown_field<B, F>(
+fn handle_unknown_field<B>(
     wire_type: WireType,
     tag: u32,
     buf: &mut B,
-    handler: &mut F,
+    return_value: bool,
     ctx: DecodeContext,
-) -> Result<(), DecodeError>
+) -> Result<Option<Vec<u8>>, DecodeError>
 where
     B: Buf,
-    F: FnMut(u32, usize, &mut B),
 {
     ctx.limit_reached()?;
-    let len = match wire_type {
-        WireType::Varint => decode_varint(buf).map(|_| 0)?,
-        WireType::ThirtyTwoBit => 4,
-        WireType::SixtyFourBit => 8,
-        WireType::LengthDelimited => decode_varint(buf)?,
+    let (len, value) = match wire_type {
+        WireType::Varint => {
+            let varint = decode_varint(buf)?;
+            let value = if return_value {
+                let mut value = Vec::with_capacity(encoded_len_varint(varint));
+                encode_varint(varint, &mut value);
+                Some(value)
+            } else {
+                None
+            };
+            (0, value)
+        }
+        WireType::ThirtyTwoBit => (4, None),
+        WireType::SixtyFourBit => (8, None),
+        WireType::LengthDelimited => (decode_varint(buf)?, None),
         WireType::StartGroup => loop {
             let (inner_tag, inner_wire_type) = decode_key(buf)?;
             match inner_wire_type {
@@ -452,15 +445,18 @@ where
                     if inner_tag != tag {
                         return Err(DecodeError::new("unexpected end group tag"));
                     }
-                    break 0;
+                    break (0, None);
                 }
-                _ => handle_unknown_field(
-                    inner_wire_type,
-                    inner_tag,
-                    buf,
-                    handler,
-                    ctx.enter_recursion(),
-                )?,
+                _ => {
+                    handle_unknown_field(
+                        inner_wire_type,
+                        inner_tag,
+                        buf,
+                        false,
+                        ctx.enter_recursion(),
+                    )?;
+                    ()
+                }
             }
         },
         WireType::EndGroup => return Err(DecodeError::new("unexpected end group tag")),
@@ -470,8 +466,21 @@ where
         return Err(DecodeError::new("buffer underflow"));
     }
 
-    handler(tag, len as usize, buf);
-    Ok(())
+    let value = match value {
+        Some(value) => Some(value),
+        None => {
+            if return_value {
+                let mut value = Vec::new();
+                value.resize(len as usize, 0);
+                buf.copy_to_slice(value.as_mut_slice());
+                Some(value)
+            } else {
+                buf.advance(len as usize);
+                None
+            }
+        }
+    };
+    Ok(value)
 }
 
 /// Helper macro which emits an `encode_repeated` function for the type.
