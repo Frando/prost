@@ -417,6 +417,9 @@ pub struct FileOptions {
     /// See the documentation for the "Options" section above.
     #[prost(message, repeated, tag="999")]
     pub uninterpreted_option: ::std::vec::Vec<UninterpretedOption>,
+
+    #[prost(unknown_fields)]
+    pub protobuf_unknown_fields: Vec<::prost::UnknownField>,
 }
 pub mod file_options {
     /// Generated classes can be optimized for speed or code size.
@@ -492,6 +495,9 @@ pub struct MessageOptions {
     /// The parser stores options it doesn't recognize here. See above.
     #[prost(message, repeated, tag="999")]
     pub uninterpreted_option: ::std::vec::Vec<UninterpretedOption>,
+
+    #[prost(unknown_fields)]
+    pub protobuf_unknown_fields: Vec<::prost::UnknownField>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FieldOptions {
@@ -634,6 +640,9 @@ pub struct ServiceOptions {
     /// The parser stores options it doesn't recognize here. See above.
     #[prost(message, repeated, tag="999")]
     pub uninterpreted_option: ::std::vec::Vec<UninterpretedOption>,
+
+    #[prost(unknown_fields)]
+    pub protobuf_unknown_fields: Vec<::prost::UnknownField>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MethodOptions {
@@ -653,6 +662,9 @@ pub struct MethodOptions {
     /// The parser stores options it doesn't recognize here. See above.
     #[prost(message, repeated, tag="999")]
     pub uninterpreted_option: ::std::vec::Vec<UninterpretedOption>,
+
+    #[prost(unknown_fields)]
+    pub protobuf_unknown_fields: Vec<::prost::UnknownField>,
 }
 pub mod method_options {
     /// Is this method side-effect-free (or safe in HTTP parlance), or idempotent,
